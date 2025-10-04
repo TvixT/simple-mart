@@ -20,6 +20,14 @@ class _AdminProductListScreenState extends State<AdminProductListScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   String _selectedNavItem = 'Products';
+  
+  // Search and filter controls
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedCategory = 'All';
+  String _stockFilter = 'All'; // All, In Stock, Out of Stock
+  String _sortBy = 'name'; // name, price, stock
+  bool _sortAscending = true;
 
   @override
   void initState() {
@@ -53,6 +61,7 @@ class _AdminProductListScreenState extends State<AdminProductListScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -343,58 +352,68 @@ class _AdminProductListScreenState extends State<AdminProductListScreen>
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          const Text(
-            'Product Management',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2C3E50),
-            ),
-          ),
-          const Spacer(),
-          
-          // Refresh Button
-          IconButton(
-            onPressed: () => productProvider.refreshProducts(),
-            icon: const Icon(Icons.refresh_outlined),
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF4267B2).withOpacity(0.1),
-              foregroundColor: const Color(0xFF4267B2),
-            ),
-            tooltip: 'Refresh Products',
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Add Product Button
-          ElevatedButton.icon(
-            onPressed: () => _navigateToAddProduct(productProvider),
-            icon: const Icon(Icons.add, size: 20),
-            label: const Text('Add Product'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFB74D),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          // Title and main actions row
+          Row(
+            children: [
+              const Text(
+                'Product Management',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2C3E50),
+                ),
               ),
-              elevation: 0,
-            ).copyWith(
-              elevation: MaterialStateProperty.resolveWith<double>(
-                (Set<MaterialState> states) {
-                  if (states.contains(MaterialState.hovered)) {
-                    return 8;
-                  }
-                  if (states.contains(MaterialState.pressed)) {
-                    return 2;
-                  }
-                  return 4;
-                },
+              const Spacer(),
+              
+              // Refresh Button
+              IconButton(
+                onPressed: () => productProvider.refreshProducts(),
+                icon: const Icon(Icons.refresh_outlined),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF4267B2).withOpacity(0.1),
+                  foregroundColor: const Color(0xFF4267B2),
+                ),
+                tooltip: 'Refresh Products',
               ),
-            ),
+              
+              const SizedBox(width: 12),
+              
+              // Add Product Button
+              ElevatedButton.icon(
+                onPressed: () => _navigateToAddProduct(productProvider),
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('Add Product'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFB74D),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ).copyWith(
+                  elevation: MaterialStateProperty.resolveWith<double>(
+                    (Set<MaterialState> states) {
+                      if (states.contains(MaterialState.hovered)) {
+                        return 8;
+                      }
+                      if (states.contains(MaterialState.pressed)) {
+                        return 2;
+                      }
+                      return 4;
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
+          
+          const SizedBox(height: 24),
+          
+          // Search and filter row
+          _buildSearchAndFilters(),
         ],
       ),
     );
@@ -451,6 +470,11 @@ class _AdminProductListScreenState extends State<AdminProductListScreen>
             
             const SizedBox(height: 16),
             
+            // Search and filters for mobile
+            _buildSearchAndFilters(),
+            
+            const SizedBox(height: 16),
+            
             // Add Product Button
             SizedBox(
               width: double.infinity,
@@ -475,6 +499,240 @@ class _AdminProductListScreenState extends State<AdminProductListScreen>
     );
   }
 
+  Widget _buildSearchAndFilters() {
+    return Consumer<ProductProvider>(
+      builder: (context, productProvider, child) {
+        // Get unique categories for filter
+        final categories = ['All'];
+        if (productProvider.products.isNotEmpty) {
+          final categoryNames = productProvider.products
+              .where((product) => product.categoryName != null)
+              .map((product) => product.categoryName!)
+              .toSet()
+              .toList();
+          categories.addAll(categoryNames);
+        }
+
+        return Column(
+          children: [
+            // Search bar
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F8FA),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey.withOpacity(0.3),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value.toLowerCase();
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'Search products...',
+                        prefixIcon: Icon(
+                          Icons.search_outlined,
+                          color: Color(0xFF4267B2),
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(width: 12),
+                
+                // Clear search button
+                if (_searchQuery.isNotEmpty)
+                  IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                    icon: const Icon(Icons.clear_outlined),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFE74C3C).withOpacity(0.1),
+                      foregroundColor: const Color(0xFFE74C3C),
+                    ),
+                    tooltip: 'Clear search',
+                  ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Filter chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // Category filter
+                  _buildFilterChip(
+                    'Category',
+                    _selectedCategory,
+                    categories,
+                    (value) => setState(() => _selectedCategory = value),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Stock filter
+                  _buildFilterChip(
+                    'Stock',
+                    _stockFilter,
+                    ['All', 'In Stock', 'Out of Stock'],
+                    (value) => setState(() => _stockFilter = value),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Sort filter
+                  _buildSortChip(),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Clear filters button
+                  if (_hasActiveFilters())
+                    ActionChip(
+                      onPressed: _clearAllFilters,
+                      label: const Text('Clear All'),
+                      avatar: const Icon(Icons.clear_all, size: 16),
+                      backgroundColor: const Color(0xFFE74C3C).withOpacity(0.1),
+                      labelStyle: const TextStyle(
+                        color: Color(0xFFE74C3C),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterChip(
+    String label,
+    String selectedValue,
+    List<String> options,
+    ValueChanged<String> onChanged,
+  ) {
+    return PopupMenuButton<String>(
+      onSelected: onChanged,
+      itemBuilder: (context) => options.map((option) {
+        return PopupMenuItem<String>(
+          value: option,
+          child: Row(
+            children: [
+              Icon(
+                selectedValue == option 
+                    ? Icons.radio_button_checked 
+                    : Icons.radio_button_unchecked,
+                size: 16,
+                color: const Color(0xFF4267B2),
+              ),
+              const SizedBox(width: 8),
+              Text(option),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Chip(
+        label: Text('$label: $selectedValue'),
+        avatar: const Icon(Icons.filter_list, size: 16),
+        backgroundColor: selectedValue != 'All' && selectedValue != options.first
+            ? const Color(0xFF4267B2).withOpacity(0.1)
+            : const Color(0xFFF7F8FA),
+        labelStyle: TextStyle(
+          color: selectedValue != 'All' && selectedValue != options.first
+              ? const Color(0xFF4267B2)
+              : Colors.grey[700],
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortChip() {
+    return PopupMenuButton<String>(
+      onSelected: (value) {
+        setState(() {
+          if (value == _sortBy) {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortBy = value;
+            _sortAscending = true;
+          }
+        });
+      },
+      itemBuilder: (context) => [
+        'name',
+        'price',
+        'stock',
+      ].map((option) {
+        final isSelected = _sortBy == option;
+        return PopupMenuItem<String>(
+          value: option,
+          child: Row(
+            children: [
+              Icon(
+                isSelected 
+                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                    : Icons.sort,
+                size: 16,
+                color: const Color(0xFF4267B2),
+              ),
+              const SizedBox(width: 8),
+              Text('Sort by ${option.substring(0, 1).toUpperCase()}${option.substring(1)}'),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Chip(
+        label: Text('Sort: ${_sortBy.substring(0, 1).toUpperCase()}${_sortBy.substring(1)} ${_sortAscending ? '↑' : '↓'}'),
+        avatar: const Icon(Icons.sort, size: 16),
+        backgroundColor: const Color(0xFF4267B2).withOpacity(0.1),
+        labelStyle: const TextStyle(
+          color: Color(0xFF4267B2),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  bool _hasActiveFilters() {
+    return _searchQuery.isNotEmpty ||
+           _selectedCategory != 'All' ||
+           _stockFilter != 'All' ||
+           _sortBy != 'name' ||
+           !_sortAscending;
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedCategory = 'All';
+      _stockFilter = 'All';
+      _sortBy = 'name';
+      _sortAscending = true;
+    });
+  }
+
   Widget _buildProductGrid(ProductProvider productProvider) {
     if (productProvider.isLoading) {
       return const Center(
@@ -493,31 +751,182 @@ class _AdminProductListScreenState extends State<AdminProductListScreen>
       return _buildEmptyState();
     }
 
+    // Apply filters and sorting
+    final filteredProducts = _getFilteredAndSortedProducts(productProvider.products);
+
+    if (filteredProducts.isEmpty) {
+      return _buildNoResultsState();
+    }
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
         position: _slideAnimation,
-        child: RefreshIndicator(
-          onRefresh: () => productProvider.refreshProducts(),
-          color: const Color(0xFF4267B2),
-          child: GridView.builder(
-            padding: const EdgeInsets.all(24),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: _getCrossAxisCount(context),
-              crossAxisSpacing: 24,
-              mainAxisSpacing: 24,
-              childAspectRatio: 0.75,
+        child: Column(
+          children: [
+            // Results count
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Text(
+                'Showing ${filteredProducts.length} of ${productProvider.products.length} products',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-            itemCount: productProvider.products.length,
-            itemBuilder: (context, index) {
-              final product = productProvider.products[index];
-              return ModernProductCard(
-                product: product,
-                onEdit: () => _navigateToEditProduct(product, productProvider),
-                onDelete: () => _showDeleteConfirmation(product, productProvider),
-              );
-            },
-          ),
+            
+            // Product grid
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () => productProvider.refreshProducts(),
+                color: const Color(0xFF4267B2),
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(24),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: _getCrossAxisCount(context),
+                    crossAxisSpacing: 24,
+                    mainAxisSpacing: 24,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: filteredProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = filteredProducts[index];
+                    return ModernProductCard(
+                      product: product,
+                      onEdit: () => _navigateToEditProduct(product, productProvider),
+                      onDelete: () => _showDeleteConfirmation(product, productProvider),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Product> _getFilteredAndSortedProducts(List<Product> products) {
+    List<Product> filteredProducts = products;
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filteredProducts = filteredProducts.where((product) {
+        final nameMatch = product.name.toLowerCase().contains(_searchQuery);
+        final descriptionMatch = product.description.toLowerCase().contains(_searchQuery);
+        final categoryMatch = product.categoryName?.toLowerCase().contains(_searchQuery) ?? false;
+        
+        return nameMatch || descriptionMatch || categoryMatch;
+      }).toList();
+    }
+
+    // Apply category filter
+    if (_selectedCategory != 'All') {
+      filteredProducts = filteredProducts.where((product) {
+        return product.categoryName == _selectedCategory;
+      }).toList();
+    }
+
+    // Apply stock filter
+    if (_stockFilter == 'In Stock') {
+      filteredProducts = filteredProducts.where((product) {
+        return product.stockQuantity > 0;
+      }).toList();
+    } else if (_stockFilter == 'Out of Stock') {
+      filteredProducts = filteredProducts.where((product) {
+        return product.stockQuantity == 0;
+      }).toList();
+    }
+
+    // Apply sorting
+    filteredProducts.sort((a, b) {
+      int comparison = 0;
+      
+      switch (_sortBy) {
+        case 'name':
+          comparison = a.name.compareTo(b.name);
+          break;
+        case 'price':
+          comparison = a.price.compareTo(b.price);
+          break;
+        case 'stock':
+          comparison = a.stockQuantity.compareTo(b.stockQuantity);
+          break;
+      }
+      
+      return _sortAscending ? comparison : -comparison;
+    });
+
+    return filteredProducts;
+  }
+
+  Widget _buildNoResultsState() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4267B2).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.search_off_outlined,
+                size: 64,
+                color: Color(0xFF4267B2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'No products found',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2C3E50),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Try adjusting your search or filters to find what you\'re looking for.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: _clearAllFilters,
+              icon: const Icon(Icons.clear_all, size: 20),
+              label: const Text('Clear Filters'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4267B2),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
